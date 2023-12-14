@@ -1,13 +1,12 @@
 const rwClient = require("./twitterClient.js");
 const TelegramBot = require('node-telegram-bot-api');
-
-
-
-const Linkedin = require('node-linkedin')('77vianum2tz402', 'n5NFrr9jsXaTWQPu', 'http://localhost:3000/callback');
+const axios = require('axios');
+const Linkedin = require('node-linkedin')(`${process.env.Linkedin_Client_ID}`, `${process.env.Linkedin_Client_Secret}`);
 require('dotenv').config();
 
 const Linkedin_AccessToken = process.env.Linkedin_AccessToken;
 var linkedin = Linkedin.init(`${Linkedin_AccessToken}`);
+const URN_ID = process.env.Linkedin_URN_ID;
 
 const botToken = `${process.env.BOT_TOKEN}`;
 const channelId = `${process.env.Telegram_Channel_ID}`;
@@ -43,7 +42,7 @@ bot.onText(/\/tweet/, (msg) => {
       inline_keyboard: [[{ text: 'Tweet', callback_data: 'tweetButton' }]],
     },
   };
-  bot.sendMessage(chatId, 'Press the button below to send a tweet:', opts);
+  bot.sendMessage(chatId, 'Press the button below to send a Message:', opts);
 });
 
 bot.on('callback_query', (query) => {
@@ -55,6 +54,8 @@ bot.on('callback_query', (query) => {
       tweet(query.message.chat.id, message.text);
       //send telegram message
       sendTelegramMessage(message.text);
+      //send linkedin post
+      sendLinkedinPost(message.text, Linkedin_AccessToken);
 
     });
   }
@@ -64,18 +65,12 @@ const tweet = async (chatId, text) => {
   try {
     const tweet = await rwClient.v2.tweet(text);
     await bot.sendMessage(chatId, 'Tweet sent successfully!');
-//     axios.get(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-//     chat_id: chatId,
-//     text: '/start',
-// })
+
   } catch (e) {
-    // bot.sendMessage(chatId, 'Error sending tweet. Please try again.');
-    // console.log("tweet error", e?.data?.errors[0]);
-    if(e?.data?.errors[0]?.message == "Your Tweet text is too long. For more information on how Twitter determines text length see https://github.com/twitter/twitter-text."){
-      // bot.sendMessage(chatId, 'Tweet is too long. Please try again.');
+    if (e?.data?.errors[0]?.message == "Your Tweet text is too long. For more information on how Twitter determines text length see https://github.com/twitter/twitter-text.") {
       tweet(chatId, text.replace(/🚀 Explore instant job and internship updates on our Telegram & WhatsApp Groups!\n🔗 Link to Join: https:\/\/linktr.ee\/hyreme/, ''));
     }
-    else{
+    else {
       bot.sendMessage(chatId, 'Error sending tweet. Please try again.');
     }
   }
@@ -88,3 +83,36 @@ const sendTelegramMessage = async (text) => {
   }
 };
 
+
+const sendLinkedinPost = async (textMessage, accessToken) => {
+  try {
+    const response = await axios.post(
+      'https://api.linkedin.com/v2/ugcPosts',
+      {
+        author: `urn:li:person:${URN_ID}`,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: {
+              text: textMessage,
+            },
+            shareMediaCategory: 'NONE',
+          },
+        },
+        visibility: {
+          'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('LinkedIn post successfully published:', response.data);
+  } catch (error) {
+    console.error('Error publishing LinkedIn post:', error.message);
+  }
+};
