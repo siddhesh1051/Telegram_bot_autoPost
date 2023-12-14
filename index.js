@@ -53,7 +53,7 @@ bot.on('callback_query', (query) => {
       //tweet fuction
       tweet(query.message.chat.id, message.text);
       //send telegram message
-      // sendTelegramMessage(message.text);
+      sendTelegramMessage(message.text);
       //send linkedin post
       sendLinkedinPost(message.text, Linkedin_AccessToken);
 
