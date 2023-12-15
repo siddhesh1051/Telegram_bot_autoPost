@@ -13,51 +13,22 @@ const channelId = `${process.env.Telegram_Channel_ID}`;
 
 const bot = new TelegramBot(botToken, { polling: true });
 
-
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const opts = {
-    reply_markup: {
-      inline_keyboard: [[{ text: 'Send Group Message', callback_data: 'tweetButton' }]],
-    },
-  };
-  bot.sendMessage(chatId, 'Press the button below to send a tweet:', opts);
-});
-
 bot.on('message', (msg) => {
   try {
-    // You can handle other commands or messages here if needed
-    if (msg.text === 'Tweet') {
-      tweet(msg.chat.id, 'Hello');
-    }
+      const chatId = msg.chat.id;
+      if(msg.text === '/start'){
+        bot.sendMessage(chatId, 'Welcome to Hyreme Bot! \n\nYou can send a message to all the members of the group by sending a message to this bot. \n\nPlease note that the message will be sent to all the members of the group and the message will be posted on all the social media platforms. \n\nPlease do not spam the group. \n\nThank you! \n\nRegards, \nHyreme Team');
+
+      }
+      else{
+        bot.sendMessage(chatId, 'Sending message to everywhere. Please wait...');
+        tweet(chatId, msg.text);
+        sendTelegramMessage(chatId, msg.text);
+        sendLinkedinPost(chatId,msg.text, Linkedin_AccessToken);
+      }
+
   } catch (e) {
-    console.log(e);
-  }
-});
-
-bot.onText(/\/tweet/, (msg) => {
-  const chatId = msg.chat.id;
-  const opts = {
-    reply_markup: {
-      inline_keyboard: [[{ text: 'Tweet', callback_data: 'tweetButton' }]],
-    },
-  };
-  bot.sendMessage(chatId, 'Press the button below to send a Message:', opts);
-});
-
-bot.on('callback_query', (query) => {
-  if (query.data === 'tweetButton') {
-    bot.answerCallbackQuery(query.id);
-    bot.sendMessage(query.message.chat.id, 'Enter your message text:');
-    bot.once('message', (message) => {
-      //tweet fuction
-      tweet(query.message.chat.id, message.text);
-      //send telegram message
-      sendTelegramMessage(message.text);
-      //send linkedin post
-      sendLinkedinPost(message.text, Linkedin_AccessToken);
-
-    });
+    bot.sendMessage(chatId, 'Error sending message. Please try again.');
   }
 });
 
@@ -67,24 +38,30 @@ const tweet = async (chatId, text) => {
     await bot.sendMessage(chatId, 'Tweet sent successfully!');
 
   } catch (e) {
-    if (e?.data?.errors[0]?.message == "Your Tweet text is too long. For more information on how Twitter determines text length see https://github.com/twitter/twitter-text.") {
-      tweet(chatId, text.replace(/🚀 Explore instant job and internship updates on our Telegram & WhatsApp Groups!\n🔗 Link to Join: https:\/\/linktr.ee\/hyreme/, ''));
+    if (e?.code === 429) {
+      bot.sendMessage(chatId, 'You have reached your daily tweet limit. Please try again tomorrow.');
+    }
+    else if(e?.code === 186){
+          bot.sendMessage(chatId, 'Tweet is too long. making it shorter and trying again.');
+          tweet(chatId, text.replace(/🚀 Explore instant job and internship updates on our Telegram & WhatsApp Groups!\n🔗 Link to Join: https:\/\/linktr.ee\/hyreme/, ''));
     }
     else {
       bot.sendMessage(chatId, 'Error sending tweet. Please try again.');
-    }
+    }    
   }
 };
-const sendTelegramMessage = async (text) => {
+
+const sendTelegramMessage = async (chatId,text) => {
   try {
-    bot.sendMessage(channelId, text);
+    await bot.sendMessage(channelId, text).then((message) => {
+      bot.sendMessage(chatId, 'Telegram successfull!');
+    })
   } catch (e) {
-    console.log(e);
+    bot.sendMessage(chatId, 'Error sending telegram message. Please try again.');
   }
 };
 
-
-const sendLinkedinPost = async (textMessage, accessToken) => {
+const sendLinkedinPost = async (chatId,textMessage, accessToken) => {
   try {
     const response = await axios.post(
       'https://api.linkedin.com/v2/ugcPosts',
@@ -109,10 +86,51 @@ const sendLinkedinPost = async (textMessage, accessToken) => {
           'Content-Type': 'application/json',
         },
       }
-    );
+    ).then((response) => {
+      bot.sendMessage(chatId, 'LinkedIn successfull!');
+    });
 
-    console.log('LinkedIn post successfully published:', response.data);
   } catch (error) {
-    console.error('Error publishing LinkedIn post:', error.message);
+    bot.sendMessage(chatId, 'Error sending linkedin post. Please try again.');  
+    console.log(error);
   }
 };
+
+
+//old code
+
+// bot.onText(/\/start/, (msg) => {
+//   const chatId = msg.chat.id;
+//   const opts = {
+//     reply_markup: {
+//       inline_keyboard: [[{ text: 'Send Group Message', callback_data: 'tweetButton' }]],
+//     },
+//   };
+//   bot.sendMessage(chatId, 'Press the button below to send a tweet:', opts);
+// });
+
+// bot.onText(/\/tweet/, (msg) => {
+//   const chatId = msg.chat.id;
+//   const opts = {
+//     reply_markup: {
+//       inline_keyboard: [[{ text: 'Tweet', callback_data: 'tweetButton' }]],
+//     },
+//   };
+//   bot.sendMessage(chatId, 'Press the button below to send a Message:', opts);
+// });
+
+// bot.on('callback_query', (query) => {
+//   if (query.data === 'tweetButton') {
+//     bot.answerCallbackQuery(query.id);
+//     bot.sendMessage(query.message.chat.id, 'Enter your message text:');
+//     bot.once('message', (message) => {
+//       //tweet fuction
+//       tweet(query.message.chat.id, message.text);
+//       //send telegram message
+//       // sendTelegramMessage(message.text);
+//       //send linkedin post
+//       // sendLinkedinPost(message.text, Linkedin_AccessToken);
+
+//     });
+//   }
+// });
